@@ -12,6 +12,8 @@ using Android.App;
 using Google.Apis.Auth.OAuth2;
 using Android.OS;
 using Android.Graphics;
+using Laerdal.FFmpeg;
+
 
 namespace MauiCameraViewSample.Platforms.Android
 {
