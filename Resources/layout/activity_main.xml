@@ -19,12 +19,12 @@ android:orientation="vertical">
 		android:layout_width="match_parent"
 		android:layout_height="wrap_content"/>
 
-	<ListView
+	<!--<ListView
     android:id="@+id/chat_list_view"
     android:layout_width="match_parent"
     android:layout_height="200dp"
     android:layout_alignParentBottom="true"
-    android:background="#EBBAEE"/>
+    android:background="#EBBAEE"/>-->
 	
 
 </LinearLayout>

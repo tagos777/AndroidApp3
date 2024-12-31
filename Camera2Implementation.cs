@@ -241,12 +241,12 @@ namespace MauiCameraViewSample.Platforms.Android
             //string streamUrl = "rtmp://your-stream-url";
             //string ffmpegArgs = $"-f rawvideo -pix_fmt yuv420p -s 1920x1080 -r 30 -i pipe:0 " +
             //                    $"-vcodec libx264 -preset veryfast -b:v 1000k -maxrate 1000k -bufsize 2000k  -acodec aac -b:a 128k -f flv {streamUrl}";
-            string ffmpegArgs = $"-f rawvideo -pix_fmt yuv420p -s 1920x1080 -r 30 -i pipe:0 " +
-                    $"-vcodec libx264 -preset veryfast -b:v 1000k -maxrate 1000k -bufsize 2000k " +
-                    $"-acodec aac -b:a 128k -f flv {streamUrl}";
+            //string ffmpegArgs = $"-f rawvideo -pix_fmt yuv420p -s 1920x1080 -r 30 -i pipe:0 " +
+            //        $"-vcodec libx264 -preset veryfast -b:v 1000k -maxrate 1000k -bufsize 2000k " +
+            //        $"-acodec aac -b:a 128k -f flv {streamUrl}";
 
-            //string ffmpegArgs = $"-f lavfi -i testsrc=size=1920x1080:rate=30 " +
-            //  $" -vcodec libx264 -b:v 1000k -maxrate 1000k -bufsize 2000k -acodec aac -b:a 128k -f flv {streamUrl}";
+            string ffmpegArgs = $"-f lavfi -i testsrc=duration=10:size=1920x1080:rate=30 -vf setpts=N/10/TB" +
+              $" -vcodec libx264 -b:v 1000k -maxrate 1000k -bufsize 2000k -acodec aac -b:a 128k -f flv {streamUrl}";
             try
             {
 

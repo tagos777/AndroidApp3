@@ -22,8 +22,8 @@ namespace AndroidApp3
         private Button _Start_Stream;
 
         //Чат
-        private ArrayAdapter<string> _chatAdapter;
-        private List<string> _chatMessages = new List<string>();
+        //private ArrayAdapter<string> _chatAdapter;
+        //private List<string> _chatMessages = new List<string>();
 
 
         protected override async void OnCreate(Bundle? savedInstanceState)
@@ -36,7 +36,7 @@ namespace AndroidApp3
             SetContentView(Resource.Layout.activity_main);
 
             //чат
-            SetupChatListView();
+            //SetupChatListView();
 
 
             _Sign_In = FindViewById<Button>(Resource.Id.Sign_In);
@@ -72,7 +72,7 @@ namespace AndroidApp3
                     Snippet = new LiveBroadcastSnippet
                     {
                         Title = $"Test Stream - {DateTime.Now:yyyy-MM-dd HH:mm:ss}",
-                        ScheduledStartTimeDateTimeOffset = DateTimeOffset.UtcNow.AddMinutes(1), // Запланированное время
+                        ScheduledStartTimeDateTimeOffset = DateTimeOffset.UtcNow, // Запланированное время
                     },
                     Status = new LiveBroadcastStatus
                     {
@@ -115,9 +115,9 @@ namespace AndroidApp3
                 Debug.WriteLine($"Stream Key: {streamResponse.Cdn.IngestionInfo.StreamName}");
                 
                 // Получение Live Chat ID
-                string liveChatId = broadcastResponse.Snippet.LiveChatId;
-                Debug.WriteLine($"Live Chat ID: {liveChatId}");
-                StartChatUpdates(youtubeService, liveChatId);
+                //string liveChatId = broadcastResponse.Snippet.LiveChatId;
+                //Debug.WriteLine($"Live Chat ID: {liveChatId}");
+                //StartChatUpdates(youtubeService, liveChatId);
 
                 // Формирование URL-адреса для стрима
                 //string streamUrl = $"{streamResponse.Cdn.IngestionInfo.IngestionAddress}/{streamResponse.Cdn.IngestionInfo.StreamName}";
@@ -153,47 +153,47 @@ namespace AndroidApp3
             }
         }
         //чат
-        private void SetupChatListView()
-        {
-            var chatListView = FindViewById<ListView>(Resource.Id.chat_list_view);
-            _chatAdapter = new ArrayAdapter<string>(this, Android.Resource.Layout.SimpleListItem1, _chatMessages);
-            chatListView.Adapter = _chatAdapter;
-        }
+        //private void SetupChatListView()
+        //{
+        //    var chatListView = FindViewById<ListView>(Resource.Id.chat_list_view);
+        //    _chatAdapter = new ArrayAdapter<string>(this, Android.Resource.Layout.SimpleListItem1, _chatMessages);
+        //    chatListView.Adapter = _chatAdapter;
+        //}
         //чат
-        private async Task<List<LiveChatMessage>> FetchChatMessagesAsync(YouTubeService youtubeService, string liveChatId)
-        {
-            var chatRequest = youtubeService.LiveChatMessages.List(liveChatId, "snippet,authorDetails");
-            chatRequest.MaxResults = 50;
+        //private async Task<List<LiveChatMessage>> FetchChatMessagesAsync(YouTubeService youtubeService, string liveChatId)
+        //{
+        //    var chatRequest = youtubeService.LiveChatMessages.List(liveChatId, "snippet,authorDetails");
+        //    chatRequest.MaxResults = 50;
 
-            var chatResponse = await chatRequest.ExecuteAsync();
-            return chatResponse.Items.ToList();
-        }
+        //    var chatResponse = await chatRequest.ExecuteAsync();
+        //    return chatResponse.Items.ToList();
+        //}
         //чат
-        private async void StartChatUpdates(YouTubeService youtubeService, string liveChatId)
-        {
-            while (true)
-            {
-                try
-                {
-                    var messages = await FetchChatMessagesAsync(youtubeService, liveChatId);
-                    foreach (var message in messages)
-                    {
-                        var author = message.AuthorDetails.DisplayName;
-                        var text = message.Snippet.DisplayMessage;
+        //private async void StartChatUpdates(YouTubeService youtubeService, string liveChatId)
+        //{
+        //    while (true)
+        //    {
+        //        try
+        //        {
+        //            var messages = await FetchChatMessagesAsync(youtubeService, liveChatId);
+        //            foreach (var message in messages)
+        //            {
+        //                var author = message.AuthorDetails.DisplayName;
+        //                var text = message.Snippet.DisplayMessage;
 
-                        _chatMessages.Add($"{author}: {text}");
-                    }
+        //                _chatMessages.Add($"{author}: {text}");
+        //            }
 
-                    RunOnUiThread(() => _chatAdapter.NotifyDataSetChanged());
-                }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine($"Error fetching chat messages: {ex.Message}");
-                }
+        //            RunOnUiThread(() => _chatAdapter.NotifyDataSetChanged());
+        //        }
+        //        catch (Exception ex)
+        //        {
+        //            Debug.WriteLine($"Error fetching chat messages: {ex.Message}");
+        //        }
 
-                await Task.Delay(5000); // Обновление каждые 5 секунд
-            }
-        }
+        //        await Task.Delay(5000); // Обновление каждые 5 секунд
+        //    }
+        //}
 
         private async Task ContentPage_Loaded()
         {
