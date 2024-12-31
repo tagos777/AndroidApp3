@@ -21,6 +21,11 @@ namespace AndroidApp3
         private Button _Sign_In;
         private Button _Start_Stream;
 
+        //Чат
+        private ArrayAdapter<string> _chatAdapter;
+        private List<string> _chatMessages = new List<string>();
+
+
         protected override async void OnCreate(Bundle? savedInstanceState)
         {
             base.OnCreate(savedInstanceState);
@@ -29,6 +34,10 @@ namespace AndroidApp3
 
             // Set our view from the "main" layout resource
             SetContentView(Resource.Layout.activity_main);
+
+            //чат
+            SetupChatListView();
+
 
             _Sign_In = FindViewById<Button>(Resource.Id.Sign_In);
             _Start_Stream = FindViewById<Button>(Resource.Id.Start_Stream);
@@ -104,9 +113,16 @@ namespace AndroidApp3
                 Debug.WriteLine($"Broadcast ID: {broadcastResponse.Id}");
                 Debug.WriteLine($"Ingestion Address: {streamResponse.Cdn.IngestionInfo.IngestionAddress}");
                 Debug.WriteLine($"Stream Key: {streamResponse.Cdn.IngestionInfo.StreamName}");
+                
+                // Получение Live Chat ID
+                string liveChatId = broadcastResponse.Snippet.LiveChatId;
+                Debug.WriteLine($"Live Chat ID: {liveChatId}");
+                StartChatUpdates(youtubeService, liveChatId);
 
                 // Формирование URL-адреса для стрима
-                string streamUrl = $"{streamResponse.Cdn.IngestionInfo.IngestionAddress}/{streamResponse.Cdn.IngestionInfo.StreamName}";
+                //string streamUrl = $"{streamResponse.Cdn.IngestionInfo.IngestionAddress}/{streamResponse.Cdn.IngestionInfo.StreamName}";
+                string streamUrl = $"{streamResponse.Cdn.IngestionInfo.RtmpsIngestionAddress}/{streamResponse.Cdn.IngestionInfo.StreamName}";
+                //string streamUrl = $"rtmps://a.rtmps.youtube.com:443/live2/{streamResponse.Cdn.IngestionInfo.StreamName}";
                 // Debug.WriteLine($"Stream URL: {streamUrl}");
 
                 // Можно передать streamUrl в метод стриминга
@@ -116,6 +132,14 @@ namespace AndroidApp3
                 {
                     return;
                 }
+                var networkPermission = await Permissions.RequestAsync<Permissions.NetworkState>();
+                if (networkPermission != PermissionStatus.Granted)
+                {
+                    return;
+                }
+
+
+
                 await Task.Run(async () => {
                     _camera2Implementation.StartCamera();
                     await _camera2Implementation.StartStream(streamUrl);
@@ -126,6 +150,48 @@ namespace AndroidApp3
             catch (Exception ex)
             {
                 //Debug.WriteLine($"Error creating stream: {ex.Message}");
+            }
+        }
+        //чат
+        private void SetupChatListView()
+        {
+            var chatListView = FindViewById<ListView>(Resource.Id.chat_list_view);
+            _chatAdapter = new ArrayAdapter<string>(this, Android.Resource.Layout.SimpleListItem1, _chatMessages);
+            chatListView.Adapter = _chatAdapter;
+        }
+        //чат
+        private async Task<List<LiveChatMessage>> FetchChatMessagesAsync(YouTubeService youtubeService, string liveChatId)
+        {
+            var chatRequest = youtubeService.LiveChatMessages.List(liveChatId, "snippet,authorDetails");
+            chatRequest.MaxResults = 50;
+
+            var chatResponse = await chatRequest.ExecuteAsync();
+            return chatResponse.Items.ToList();
+        }
+        //чат
+        private async void StartChatUpdates(YouTubeService youtubeService, string liveChatId)
+        {
+            while (true)
+            {
+                try
+                {
+                    var messages = await FetchChatMessagesAsync(youtubeService, liveChatId);
+                    foreach (var message in messages)
+                    {
+                        var author = message.AuthorDetails.DisplayName;
+                        var text = message.Snippet.DisplayMessage;
+
+                        _chatMessages.Add($"{author}: {text}");
+                    }
+
+                    RunOnUiThread(() => _chatAdapter.NotifyDataSetChanged());
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Error fetching chat messages: {ex.Message}");
+                }
+
+                await Task.Delay(5000); // Обновление каждые 5 секунд
             }
         }
 
@@ -181,6 +247,7 @@ namespace AndroidApp3
                 //await StartStreaming();
             }
         }
+        
 
 
 

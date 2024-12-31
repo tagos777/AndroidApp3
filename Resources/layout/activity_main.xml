@@ -13,8 +13,18 @@ android:orientation="vertical">
 	<Button android:id="@+id/Start_Stream" android:text="Start Stream"
 		 android:layout_width="wrap_content"
 		 android:layout_height="wrap_content"/>
+	
+
 	<TextureView android:id="@+id/Texture_View1"
 		android:layout_width="match_parent"
-		android:layout_height="match_parent"/>
+		android:layout_height="wrap_content"/>
+
+	<ListView
+    android:id="@+id/chat_list_view"
+    android:layout_width="match_parent"
+    android:layout_height="200dp"
+    android:layout_alignParentBottom="true"
+    android:background="#EBBAEE"/>
 	
+
 </LinearLayout>

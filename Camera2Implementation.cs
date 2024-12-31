@@ -12,7 +12,8 @@ using Android.App;
 using Google.Apis.Auth.OAuth2;
 using Android.OS;
 using Android.Graphics;
-using Laerdal.FFmpeg;
+using Android.Media;
+using Laerdal.FFmpeg.Android;
 
 
 namespace MauiCameraViewSample.Platforms.Android
@@ -28,9 +29,7 @@ namespace MauiCameraViewSample.Platforms.Android
         private bool _isCameraOpen = false;
 
         private System.Diagnostics.Process ffmpegProcess;
-        
-
-
+        private Object _lock=new();
         public Camera2Implementation(TextureView textureView)
         {
             _textureView = textureView;
@@ -83,7 +82,11 @@ namespace MauiCameraViewSample.Platforms.Android
                     {
                         var _surface = new Surface(surface);
                         _cameraDevice = cameraDevice;
-                        _isCameraOpen = true;
+                        lock (_lock)
+                        {
+                            _isCameraOpen = true;
+
+                        }
 
                         // Создаем запрос на захват
                         _previewBuilder = _cameraDevice.CreateCaptureRequest(CameraTemplate.Preview);
@@ -150,8 +153,10 @@ namespace MauiCameraViewSample.Platforms.Android
                 _cameraDevice.Close();
                 _cameraDevice = null;
             }
-
-            _isCameraOpen = false;
+            lock (_lock)
+            {
+                _isCameraOpen = false;
+            }
         }
 
         // Захват кадров с камеры и отправка их в FFmpeg
@@ -171,8 +176,15 @@ namespace MauiCameraViewSample.Platforms.Android
                 var surface = new Surface(surfaceTexture);
 
                 // Получаем захваченные кадры и передаем их в FFmpeg
-                while (_isCameraOpen)
+                while (true)
                 {
+                    lock(_lock)
+                    {
+                        if(!_isCameraOpen)
+                        {
+                            break;
+                        }
+                    }
                     // Получаем изображение с камеры в формате YUV
                     var image = _cameraDevice.CreateCaptureRequest(CameraTemplate.Preview).Build();
 
@@ -209,36 +221,57 @@ namespace MauiCameraViewSample.Platforms.Android
         // Старт стрима
         public async Task StartStream(string streamUrl)
         {
-            if (_isCameraOpen)
+            if(!_isCameraOpen)
             {
-                // Настройка аргументов для FFmpeg
-                //string streamUrl = "rtmp://your-stream-url";
-                string ffmpegArgs = $"-f rawvideo -pix_fmt yuv420p -s 1920x1080 -r 30 -i pipe:0 " +
-                                    $"-vcodec libx264 -b:v 1000k -maxrate 1000k -bufsize 2000k -acodec aac -b:a 128k -f flv {streamUrl}";
+                return;
+            }
+            //while (true)
+            //{
+            //    lock (_lock)
+            //    {
+            //        if (_isCameraOpen)
+            //        {
+            //            break;
+            //        }
+            //    }
+            //    await Task.Delay(1000);
 
-                try
-                {
-                    ffmpegProcess = new System.Diagnostics.Process
-                    {
-                        StartInfo = new ProcessStartInfo
-                        {
-                            FileName = "ffmpeg",
-                            Arguments = ffmpegArgs,
-                            RedirectStandardInput = true,
-                            RedirectStandardError = true,
-                            UseShellExecute = false,
-                            CreateNoWindow = true
-                        }
-                    };
+            //}  
+            // Настройка аргументов для FFmpeg
+            //string streamUrl = "rtmp://your-stream-url";
+            string ffmpegArgs = $"-f rawvideo -pix_fmt yuv420p -s 1920x1080 -r 30 -i pipe:0 " +
+                                $"-vcodec libx264 -preset veryfast -b:v 1000k -maxrate 1000k -bufsize 2000k  -acodec aac -b:a 128k -f flv -loglevel debug {streamUrl}";
+            //string ffmpegArgs = $"-f lavfi -i testsrc=size=1920x1080:rate=30 " +
+            //  $" -vcodec libx264 -b:v 1000k -maxrate 1000k -bufsize 2000k -acodec aac -b:a 128k -f flv {streamUrl}";
+            try
+            {
 
-                    ffmpegProcess.Start();
+                    Task.Run(() => {
+
+                        FFmpeg.Execute(ffmpegArgs);
+
+                    });
+                    //ffmpegProcess = new System.Diagnostics.Process
+                    //{
+                    //    StartInfo = new ProcessStartInfo
+                    //    {
+                    //        FileName = "ffmpeg",
+                    //        Arguments = ffmpegArgs,
+                    //        RedirectStandardInput = true,
+                    //        RedirectStandardError = true,
+                    //        UseShellExecute = false,
+                    //        CreateNoWindow = true
+                    //    }
+                    //};
+
+                    //ffmpegProcess.Start();
                     await CaptureAndSendFrameAsync();  // Начинаем захват и передачу данных в FFmpeg
                 }
                 catch (Exception ex)
                 {
                     Log.Error("Camera2Implementation", $"Ошибка при запуске FFmpeg: {ex.Message}");
                 }
-            }
+            
         }
 
         // Метод для остановки стрима
