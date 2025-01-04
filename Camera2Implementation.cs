@@ -30,6 +30,8 @@ namespace MauiCameraViewSample.Platforms.Android
 
         private System.Diagnostics.Process ffmpegProcess;
         private Object _lock=new();
+
+        private ImageReader _imageReader;
         public Camera2Implementation(TextureView textureView)
         {
             _textureView = textureView;
@@ -245,8 +247,20 @@ namespace MauiCameraViewSample.Platforms.Android
             //        $"-vcodec libx264 -preset veryfast -b:v 1000k -maxrate 1000k -bufsize 2000k " +
             //        $"-acodec aac -b:a 128k -f flv {streamUrl}";
 
-            string ffmpegArgs = $"-f lavfi -i testsrc=duration=10:size=1920x1080:rate=30 -vf setpts=N/10/TB" +
-              $" -vcodec libx264 -b:v 1000k -maxrate 1000k -bufsize 2000k -acodec aac -b:a 128k -f flv {streamUrl}";
+            //string ffmpegArgs = $"-re -f lavfi -i testsrc=duration=1000:size=1280x720:rate=30 " +
+            //  $" -vcodec libx264 -b:v 1000k -maxrate 3000k -bufsize 6000k -acodec aac -b:a 128k -f flv -flvflags no_duration_filesize  {streamUrl}";
+            //        string ffmpegArgs = $"  -re -f lavfi -i testsrc=duration=1000:size=1280x720:rate=30 " +
+            //$" -vcodec libx264 -b:v 1000k -maxrate 3000k -bufsize 6000k -acodec aac -b:a 128k -f flv {streamUrl}";
+
+            //рабочий
+            //string ffmpegArgs = $"  -re -f lavfi -i testsrc=duration=1000:size=1280x720:rate=30 " +
+            //$" -vcodec libx264 -b:v 1000k -maxrate 3000k -bufsize 6000k -acodec aac -b:a 128k -f flv {streamUrl}";
+
+
+            string ffmpegArgs = $"-f lavfi -i testsrc=size=1280x720:rate=30  -vcodec libx264 -b:v 1000k -maxrate 3000k -bufsize 6000k -preset fast -g 50 -acodec aac -b:a 128k -f flv -fflags +genpts -loglevel debug {streamUrl}";
+
+
+
             try
             {
 
