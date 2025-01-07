@@ -137,7 +137,7 @@ namespace AndroidApp3
                 {
                     return;
                 }
-                //var readExternalStorage = await Permissions.RequestAsync<Permissions.StorageRead>();
+                //var readExternalStorage = await Permissions.RequestAsync<Permissions.Media>();
                 //if (readExternalStorage != PermissionStatus.Granted)
                 //{
                 //    return;

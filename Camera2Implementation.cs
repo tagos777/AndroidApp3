@@ -14,6 +14,8 @@ using Android.OS;
 using Android.Graphics;
 using Android.Media;
 using Laerdal.FFmpeg.Android;
+using Java.IO;
+using Java.Interop;
 
 
 namespace MauiCameraViewSample.Platforms.Android
@@ -32,6 +34,8 @@ namespace MauiCameraViewSample.Platforms.Android
         private Object _lock=new();
 
         private ImageReader _imageReader;
+        private ImageAvailableListener _imageListener;
+
         public Camera2Implementation(TextureView textureView)
         {
             _textureView = textureView;
@@ -89,7 +93,7 @@ namespace MauiCameraViewSample.Platforms.Android
                             _isCameraOpen = true;
 
                         }
-
+                        SetupImageReader();
                         // Создаем запрос на захват
                         _previewBuilder = _cameraDevice.CreateCaptureRequest(CameraTemplate.Preview);
                         _previewBuilder.AddTarget(_surface);
@@ -102,6 +106,7 @@ namespace MauiCameraViewSample.Platforms.Android
                                 OnConfiguredAction = session =>
                                 {
                                     _cameraSession = session;
+                                    _previewBuilder.AddTarget(_imageReader.Surface); // Добавляем ImageReader как целевой объект
                                     _cameraSession.SetRepeatingRequest(_previewBuilder.Build(), null, null);
                                 }
                             },
@@ -122,7 +127,132 @@ namespace MauiCameraViewSample.Platforms.Android
                 Log.Error("Camera2Implementation", $"Ошибка при запуске камеры: {ex.Message}");
             }
         }
+        ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        // Настройка ImageReader
+        private void SetupImageReader()
+        {
+            // Устанавливаем размер кадров и формат
+            _imageReader = ImageReader.NewInstance(1920, 1080, ImageFormatType.Yuv420888, 2);
+            _imageReader.SetOnImageAvailableListener(new ImageAvailableListener
+            {
+                ImageAvailable = imageReader =>
+                {
+                    // Обработка кадра
+                    using (var image = imageReader.AcquireLatestImage())
+                    {
+                        if (image != null)
+                        {
+                            ProcessImage(image);
+                            image.Close();
+                        }
+                    }
+                }
+            }, null);
+        }
+        public class ImageAvailableListener : Java.Lang.Object, ImageReader.IOnImageAvailableListener
+        {
+            public Action<ImageReader> ImageAvailable;
 
+            public void OnImageAvailable(ImageReader reader)
+            {
+                // Trigger the event when a new image is available
+                ImageAvailable?.Invoke(reader);
+            }
+        }
+
+        // Обработка изображения
+        private void ProcessImage(Image image)
+        {
+            try
+            {
+                // Пример обработки кадра: преобразуем YUV в ByteArray
+                var planes = image.GetPlanes();
+                var buffer = planes[0].Buffer;
+                var data = new byte[buffer.Remaining()];
+                buffer.Get(data);
+
+                // Отправляем кадр в поток для FFmpeg
+                SendFrameToFFmpeg(data);
+            }
+            catch (Exception ex)
+            {
+                Log.Error("Camera2Implementation", $"Ошибка обработки изображения: {ex.Message}");
+            }
+        }
+        private void SendFrameToFFmpeg(byte[] data)
+        {
+            // Убедитесь, что путь к FIFO корректный
+            string fifoPath = "/data/data/com.tagos.oauthsample/files/input_fifo";
+
+            try
+            {
+                // Открываем FIFO для записи
+                using (var fifoStream = new FileStream(fifoPath, FileMode.Open, FileAccess.Write))
+                {
+                    // Пишем данные в FIFO
+                    fifoStream.Write(data, 0, data.Length);
+                    fifoStream.Flush(); // Убедитесь, что данные отправлены
+                }
+            }
+            catch (Exception ex)
+            {
+                // Логируем ошибки для отладки
+                System.Diagnostics.Debug.WriteLine($"Ошибка при отправке кадра в FFmpeg: {ex.Message}");
+            }
+        }
+
+        public async Task StartFFmpegStreamAsync(string streamUrl)
+        {
+            try
+            {
+                // Создаем именованный pipe
+                var fifoPath = "/data/data/com.tagos.oauthsample/files/input_fifo";
+                Java.IO.File fifoFile = new Java.IO.File(fifoPath);
+
+                if (!fifoFile.Exists())
+                {
+                    Java.Lang.Runtime.GetRuntime().Exec($"mkfifo {fifoPath}").WaitFor();
+                }
+
+                // Настраиваем FFmpeg для чтения из pipe
+                string ffmpegArgs = $"-f rawvideo -pix_fmt yuv420p -s 1920x1080 -r 30 -i {fifoPath} " +
+                                    $"-vcodec libx264 -preset veryfast -b:v 1000k -maxrate 1000k -bufsize 2000k -f flv {streamUrl}";
+
+                Task.Run(() => FFmpeg.Execute(ffmpegArgs));
+
+                // Открываем pipe и отправляем данные
+                using (var outputStream = new FileOutputStream(fifoFile))
+                {
+                    while (_isCameraOpen)
+                    {
+                        // Получаем кадры из ImageReader и записываем их в pipe
+                        var data = await CaptureFrameAsync();
+                        if (data != null)
+                        {
+                            outputStream.Write(data);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error("Camera2Implementation", $"Ошибка при запуске стрима: {ex.Message}");
+            }
+        }
+
+        // Пример асинхронного захвата кадра
+        private Task<byte[]> CaptureFrameAsync()
+        {
+            // Реализуйте метод, возвращающий кадр из ImageReader
+            return Task.FromResult<byte[]>(null);
+        }
+
+
+        ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
         // Реализация SurfaceTextureListener
         private class CameraSurfaceTextureListener : Java.Lang.Object, TextureView.ISurfaceTextureListener
         {
@@ -227,6 +357,9 @@ namespace MauiCameraViewSample.Platforms.Android
             {
                 return;
             }
+
+            StartFFmpegStreamAsync(streamUrl);
+            return;
             //while (true)
             //{
             //    lock (_lock)
