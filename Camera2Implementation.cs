@@ -16,12 +16,17 @@ using Android.Media;
 using Laerdal.FFmpeg.Android;
 using Java.IO;
 using Java.Interop;
+using LibVLCSharp.Shared;
+using Android.Media.TV;
 
 
 namespace MauiCameraViewSample.Platforms.Android
 {
     internal class Camera2Implementation
     {
+        private LibVLC _libVlc;
+        private LibVLCSharp.Shared.MediaPlayer _mediaPlayer;
+
         private CameraDevice _cameraDevice;
         private CameraCaptureSession _cameraSession;
         private CaptureRequest.Builder _previewBuilder;
@@ -161,6 +166,49 @@ namespace MauiCameraViewSample.Platforms.Android
                 ImageAvailable?.Invoke(reader);
             }
         }
+        public void InitializeVlcStream(string rtmpUrl)
+        {
+            Core.Initialize(); // Инициализация LibVLC
+            _libVlc = new LibVLC();
+
+            // Настройка MediaPlayer
+            _mediaPlayer = new LibVLCSharp.Shared.MediaPlayer(_libVlc);
+
+            var media = new Media(_libVlc, $"sout=#transcode{{vcodec=h264,vb=1000,acodec=none}}:rtp{{dst={rtmpUrl},port=1234,mux=ts}}", FromType.FromLocation);
+            _mediaPlayer.Play(media);
+        }
+        private void SendFrameToVlc(byte[] data)
+        {
+            try
+            {
+                if (_mediaPlayer == null)
+                {
+                    Log.Error("SendFrameToVlc", "MediaPlayer не инициализирован.");
+                    return;
+                }
+
+                // Создаем MemoryStream из переданных данных
+                using (var stream = new MemoryStream(data))
+                {
+                    
+                    // Используем API VLC для передачи данных в поток
+                    var mediaInput = new CustomMediaInput(stream);
+
+                    // Привязываем поток к MediaPlayer
+                    _mediaPlayer.Media = new Media(_libVlc, mediaInput);
+
+                    // Проверяем, играет ли MediaPlayer
+                    if (!_mediaPlayer.IsPlaying)
+                    {
+                        _mediaPlayer.Play();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error("SendFrameToVlc", $"Ошибка отправки кадра в VLC: {ex.Message}");
+            }
+        }
 
         // Обработка изображения
         private void ProcessImage(Image image)
@@ -174,7 +222,10 @@ namespace MauiCameraViewSample.Platforms.Android
                 buffer.Get(data);
 
                 // Отправляем кадр в поток для FFmpeg
-                SendFrameToFFmpeg(data);
+                // SendFrameToFFmpeg(data);
+
+                // Отправляем кадры в VLC
+                SendFrameToVlc(data);
             }
             catch (Exception ex)
             {
@@ -358,71 +409,8 @@ namespace MauiCameraViewSample.Platforms.Android
                 return;
             }
 
-            StartFFmpegStreamAsync(streamUrl);
-            return;
-            //while (true)
-            //{
-            //    lock (_lock)
-            //    {
-            //        if (_isCameraOpen)
-            //        {
-            //            break;
-            //        }
-            //    }
-            //    await Task.Delay(1000);
-
-            //}  
-            // Настройка аргументов для FFmpeg
-            //string streamUrl = "rtmp://your-stream-url";
-            //string ffmpegArgs = $"-f rawvideo -pix_fmt yuv420p -s 1920x1080 -r 30 -i pipe:0 " +
-            //                    $"-vcodec libx264 -preset veryfast -b:v 1000k -maxrate 1000k -bufsize 2000k  -acodec aac -b:a 128k -f flv {streamUrl}";
-            //string ffmpegArgs = $"-f rawvideo -pix_fmt yuv420p -s 1920x1080 -r 30 -i pipe:0 " +
-            //        $"-vcodec libx264 -preset veryfast -b:v 1000k -maxrate 1000k -bufsize 2000k " +
-            //        $"-acodec aac -b:a 128k -f flv {streamUrl}";
-
-            //string ffmpegArgs = $"-re -f lavfi -i testsrc=duration=1000:size=1280x720:rate=30 " +
-            //  $" -vcodec libx264 -b:v 1000k -maxrate 3000k -bufsize 6000k -acodec aac -b:a 128k -f flv -flvflags no_duration_filesize  {streamUrl}";
-            //        string ffmpegArgs = $"  -re -f lavfi -i testsrc=duration=1000:size=1280x720:rate=30 " +
-            //$" -vcodec libx264 -b:v 1000k -maxrate 3000k -bufsize 6000k -acodec aac -b:a 128k -f flv {streamUrl}";
-
-            //рабочий
-            //string ffmpegArgs = $"  -re -f lavfi -i testsrc=duration=1000:size=1280x720:rate=30 " +
-            //$" -vcodec libx264 -b:v 1000k -maxrate 3000k -bufsize 6000k -acodec aac -b:a 128k -f flv {streamUrl}";
-
-
-            string ffmpegArgs = $"-f lavfi -i testsrc=size=1280x720:rate=30  -vcodec libx264 -b:v 1000k -maxrate 3000k -bufsize 6000k -preset fast -g 50 -acodec aac -b:a 128k -f flv -fflags +genpts -loglevel debug {streamUrl}";
-
-
-
-            try
-            {
-
-                    Task.Run(() => {
-
-                        FFmpeg.Execute(ffmpegArgs);
-
-                    });
-                    //ffmpegProcess = new System.Diagnostics.Process
-                    //{
-                    //    StartInfo = new ProcessStartInfo
-                    //    {
-                    //        FileName = "ffmpeg",
-                    //        Arguments = ffmpegArgs,
-                    //        RedirectStandardInput = true,
-                    //        RedirectStandardError = true,
-                    //        UseShellExecute = false,
-                    //        CreateNoWindow = true
-                    //    }
-                    //};
-
-                    //ffmpegProcess.Start();
-                    await CaptureAndSendFrameAsync();  // Начинаем захват и передачу данных в FFmpeg
-                }
-                catch (Exception ex)
-                {
-                    Log.Error("Camera2Implementation", $"Ошибка при запуске FFmpeg: {ex.Message}");
-                }
-            
+            //StartFFmpegStreamAsync(streamUrl);
+            InitializeVlcStream(streamUrl);                     
         }
 
         // Метод для остановки стрима
@@ -470,5 +458,60 @@ namespace MauiCameraViewSample.Platforms.Android
             {
             }
         }
-    }
+
+     
+
+public class CustomMediaInput : MediaInput
+    {
+        private readonly System.IO.Stream _dataStream;
+
+        public CustomMediaInput(System.IO.Stream dataStream)
+        {
+            _dataStream = dataStream ?? throw new ArgumentNullException(nameof(dataStream));
+        }
+
+       
+
+       
+
+        
+
+        
+
+            public override bool Open(out ulong size)
+            {
+                size = (ulong)_dataStream.Length;
+                return true;
+            }
+
+            public override int Read(nint buffer, uint bufferSize)
+            {
+                var byteBuffer = new byte[bufferSize];
+                int bytesRead = _dataStream.Read(byteBuffer, 0, (int)bufferSize);
+
+                if (bytesRead > 0)
+                {
+                    System.Runtime.InteropServices.Marshal.Copy(byteBuffer, 0, buffer, bytesRead);
+                }
+
+                return bytesRead;
+            }
+
+            public override bool Seek(ulong offset)
+            {
+                if (!_dataStream.CanSeek)
+                    return false;
+
+                _dataStream.Seek((long)offset, SeekOrigin.Begin);
+                return true;
+            }
+
+            public override void Close()
+            {
+                _dataStream.Dispose();
+            }
+        }
+
+
+}
 }
